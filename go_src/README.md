@@ -92,6 +92,46 @@ go run cmd/cato-terraform/main.go \
 | `--psk` | IPsec pre-shared key | `praveen_infoblox` | No |
 | `--network` | Native network range | `10.201.1.0/24` | No |
 | `--destroy` | Destroy resources | `false` | No |
+| `--state-backend` | State backend: `pg`, `s3`, `local`, or empty | Empty (ephemeral) | No |
+| `--state-conn` | State connection string (Postgres DSN or S3 bucket) | From env var | No |
+
+## State Management
+
+**Important**: By default, the SDK uses **ephemeral state** (no persistence). To enable **resource updates**, use a persistent state backend.
+
+### Quick Start with PostgreSQL State
+
+```bash
+# Set connection string
+export TF_STATE_POSTGRES_CONN="postgres://postgres:postgres@localhost:5433/terraform_state?sslmode=disable"
+
+# Create site
+SITE_NAME="MySite" BGP_IP="169.254.221.1" \
+  go run cmd/cato-terraform/main.go \
+    --state-backend=pg \
+    --network="10.212.1.0/24"
+
+# Update BGP IP (Terraform detects change and updates)
+SITE_NAME="MySite" BGP_IP="169.254.221.2" \
+  go run cmd/cato-terraform/main.go \
+    --state-backend=pg \
+    --network="10.212.1.0/24"
+```
+
+**See [STATE_MANAGEMENT.md](STATE_MANAGEMENT.md) for:**
+- Complete guide to all backends (PostgreSQL, S3, Local)
+- Production setup instructions
+- SDWAN adapter integration examples
+- Troubleshooting
+
+### State Backend Comparison
+
+| Backend | Updates Supported | Persistence | Use Case |
+|---------|-------------------|-------------|----------|
+| None (default) | ❌ No | Ephemeral | Testing, one-time deployments |
+| PostgreSQL (`pg`) | ✅ Yes | Permanent | Production, SDWAN adapter |
+| S3 (`s3`) | ✅ Yes | Permanent | AWS deployments |
+| Local (`local`) | ✅ Yes | Until reboot | Development |
 
 ## Makefile Targets
 

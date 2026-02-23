@@ -22,6 +22,10 @@ func main() {
 	networkRange := flag.String("network", "10.201.1.0/24", "Native network range")
 	destroy := flag.Bool("destroy", false, "Destroy resources instead of creating")
 
+	// State backend options
+	stateBackend := flag.String("state-backend", "", "State backend: pg, s3, local, or empty for ephemeral")
+	stateConn := flag.String("state-conn", "", "State connection string (Postgres DSN or S3 bucket)")
+
 	flag.Parse()
 
 	// Get credentials from env if not provided via flags
@@ -38,14 +42,16 @@ func main() {
 
 	// Create configuration
 	config := &terraform.CatoIPsecConfig{
-		CatoToken:     *catoToken,
-		AccountID:     *accountID,
-		SiteName:      *siteName,
-		PublicIP:      *publicIP,
-		BGPNeighborIP: *bgpNeighborIP,
-		BGPASN:        *bgpASN,
-		IPsecPSK:      *ipsecPSK,
-		NetworkRange:  *networkRange,
+		CatoToken:       *catoToken,
+		AccountID:       *accountID,
+		SiteName:        *siteName,
+		PublicIP:        *publicIP,
+		BGPNeighborIP:   *bgpNeighborIP,
+		BGPASN:          *bgpASN,
+		IPsecPSK:        *ipsecPSK,
+		NetworkRange:    *networkRange,
+		StateBackend:    *stateBackend,
+		StateConnString: *stateConn,
 	}
 
 	// Create executor

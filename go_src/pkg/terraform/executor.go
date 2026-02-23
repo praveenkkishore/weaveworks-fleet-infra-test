@@ -11,14 +11,16 @@ import (
 )
 
 type CatoIPsecConfig struct {
-	CatoToken     string
-	AccountID     string
-	SiteName      string
-	PublicIP      string
-	BGPNeighborIP string
-	BGPASN        int
-	IPsecPSK      string
-	NetworkRange  string
+	CatoToken       string
+	AccountID       string
+	SiteName        string
+	PublicIP        string
+	BGPNeighborIP   string
+	BGPASN          int
+	IPsecPSK        string
+	NetworkRange    string
+	StateBackend    string // "pg", "s3", "local", or empty for ephemeral
+	StateConnString string // PostgreSQL connection string or S3 bucket
 }
 
 type CatoOutputs struct {
@@ -64,8 +66,45 @@ func NewCatoExecutor(config *CatoIPsecConfig) (*CatoExecutor, error) {
 }
 
 func (e *CatoExecutor) generateTerraformFiles() error {
+	// Generate backend configuration based on config
+	backendConfig := ""
+	switch e.config.StateBackend {
+	case "pg":
+		connStr := e.config.StateConnString
+		if connStr == "" {
+			connStr = os.Getenv("TF_STATE_POSTGRES_CONN")
+		}
+		if connStr == "" {
+			connStr = "postgres://postgres:postgres@localhost:5433/terraform_state?sslmode=disable"
+		}
+		backendConfig = fmt.Sprintf(`
+  backend "pg" {
+    conn_str    = "%s"
+    schema_name = "cato_sites"
+  }`, connStr)
+	case "s3":
+		bucket := e.config.StateConnString
+		if bucket == "" {
+			bucket = os.Getenv("TF_STATE_S3_BUCKET")
+		}
+		backendConfig = fmt.Sprintf(`
+  backend "s3" {
+    bucket = "%s"
+    key    = "cato-sites/%s/terraform.tfstate"
+    region = "us-east-1"
+  }`, bucket, e.config.SiteName)
+	case "local":
+		backendConfig = fmt.Sprintf(`
+  backend "local" {
+    path = "/tmp/terraform-state/%s/terraform.tfstate"
+  }`, e.config.SiteName)
+	default:
+		// No backend = ephemeral state in temp directory
+		backendConfig = ""
+	}
+
 	// Generate main.tf
-	mainTF := `
+	mainTF := fmt.Sprintf(`
 terraform {
   required_version = ">= 1.5"
   required_providers {
@@ -73,7 +112,7 @@ terraform {
       source  = "registry.terraform.io/catonetworks/cato"
       version = ">= 0.0.38"
     }
-  }
+  }%s
 }
 
 provider "cato" {
@@ -123,7 +162,7 @@ resource "cato_ipsec_site" "ipsec_bgp" {
         {
           public_site_ip  = var.public_ip
           private_site_ip = var.bgp_neighbor_ip
-          private_cato_ip = "169.254.201.1"
+          private_cato_ip = "169.254.210.1"
           psk             = var.ipsec_psk
           last_mile_bw = {
             downstream = 100
@@ -157,9 +196,7 @@ output "ipsec_site_info" {
     bgp_peer_name = cato_bgp_peer.ipsec_bgp_peer.name
   }
 }
-`
-
-	// Generate variables.tf
+`, backendConfig)
 	variablesTF := `
 variable "cato_token" {
   type      = string
