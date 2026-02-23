@@ -67,6 +67,7 @@ func (e *CatoExecutor) generateTerraformFiles() error {
 	// Generate main.tf
 	mainTF := `
 terraform {
+  required_version = ">= 1.5"
   required_providers {
     cato = {
       source  = "registry.terraform.io/catonetworks/cato"
@@ -76,12 +77,27 @@ terraform {
 }
 
 provider "cato" {
+  baseurl    = "https://api.catonetworks.com/api/v1/graphql2"
   token      = var.cato_token
   account_id = var.cato_account_id
 }
 
 data "cato_siteLocation" "ny" {
-  city = "New York"
+  filters = [{
+    field     = "city"
+    search    = "New York City"
+    operation = "startsWith"
+    },
+    {
+      field     = "state_name"
+      search    = "New York"
+      operation = "exact"
+    },
+    {
+      field     = "country_name"
+      search    = "United States"
+      operation = "contains"
+  }]
 }
 
 data "cato_allocatedIp" "public_ips" {}
@@ -89,7 +105,6 @@ data "cato_allocatedIp" "public_ips" {}
 resource "cato_ipsec_site" "ipsec_bgp" {
   name                  = var.site_name
   site_type             = "BRANCH"
-  connection_type       = "SOCKET_GW150"
   description           = "IPsec site with BGP peering"
   native_network_range  = var.network_range
   
@@ -108,7 +123,7 @@ resource "cato_ipsec_site" "ipsec_bgp" {
         {
           public_site_ip  = var.public_ip
           private_site_ip = var.bgp_neighbor_ip
-          private_cato_ip = "169.254.101.1"
+          private_cato_ip = "169.254.201.1"
           psk             = var.ipsec_psk
           last_mile_bw = {
             downstream = 100
@@ -121,13 +136,13 @@ resource "cato_ipsec_site" "ipsec_bgp" {
 }
 
 resource "cato_bgp_peer" "ipsec_bgp_peer" {
-  site_id                = cato_ipsec_site.ipsec_bgp.id
-  name                   = "IPsec-BGP-Peer"
-  peer_ip                = var.bgp_neighbor_ip
-  peer_asn               = var.bgp_asn
-  cato_asn               = 65000
-  advertise_default_route = true
-  advertise_all_routes   = true
+  site_id              = cato_ipsec_site.ipsec_bgp.id
+  name                 = "IPsec-BGP-Peer"
+  peer_ip              = var.bgp_neighbor_ip
+  peer_asn             = var.bgp_asn
+  cato_asn             = 65000
+  default_action       = "ACCEPT"
+  advertise_all_routes = true
 }
 
 output "ipsec_site_id" {

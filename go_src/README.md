@@ -112,9 +112,71 @@ custom               Run with custom parameters
 example-site2        Create a second example site
 ```
 
-## Output Example
+## Real Execution Example
 
+### Complete Workflow: Failure → Resolution → Success
+
+#### Step 1: Initial Attempt - Network Range Conflict
+
+```bash
+pkishore@IB-CVH732KDFR go_src % go run cmd/cato-terraform/main.go \
+                --site-name="Praveen-Go-SDK-Test-2" \
+                --public-ip="1.1.1.1" \
+                --bgp-ip="169.254.210.1" \
+                --bgp-asn=65100 \
+                --psk="praveen_infoblox" \
+                --network="10.203.1.0/24"
+Creating Cato IPsec site with BGP...
+→ Initializing Terraform...
+→ Planning changes...
+→ Applying changes...
+2026/02/24 00:58:16 Failed to apply: terraform apply failed: exit status 1
+
+Error: Cato API error
+
+  with cato_ipsec_site.ipsec_bgp,
+  on main.tf line 38, in resource "cato_ipsec_site" "ipsec_bgp":
+  38: resource "cato_ipsec_site" "ipsec_bgp" {
+
+{"networkErrors":null,"graphqlErrors":[{"message":"Range
+10.203.1.1-10.203.1.254 of site 'praveen-go-sdk-test-2' overlaps with range
+10.203.1.1-10.203.1.254 of site
+'Praveen-Go-SDK-Test-1'","path":["site","addIpsecIkeV2Site"]}]}
+exit status 1
+make: *** [run] Error 1
 ```
+
+**Problem**: Network range `10.203.1.0/24` is already used by site `Praveen-Go-SDK-Test-1`
+
+#### Step 2: Clean Up Conflicting Resource
+
+```bash
+pkishore@IB-CVH732KDFR go_src % SITE_NAME="Praveen-Go-SDK-Test-1" BGP_IP="169.254.210.1" make destroy NETWORK="10.203.1.0/24"
+→ Destroying Cato resources...
+go run cmd/cato-terraform/main.go --destroy
+Destroying Cato IPsec site...
+→ Initializing Terraform...
+→ Destroying resources...
+✓ Resources destroyed successfully
+```
+
+**Action**: Destroyed the conflicting site to free up resources
+
+#### Step 3: Successful Creation with New Parameters
+
+```bash
+pkishore@IB-CVH732KDFR go_src % SITE_NAME="Praveen-Go-SDK-Test-2" BGP_IP="169.254.221.1" make run NETWORK="10.212.1.0/24"
+→ Running Cato Terraform executor...
+  CATO_TOKEN: ...
+  CATO_ACCOUNT_ID: 17957
+
+go run cmd/cato-terraform/main.go \
+                --site-name="Praveen-Go-SDK-Test-2" \
+                --public-ip="1.1.1.1" \
+                --bgp-ip="169.254.221.1" \
+                --bgp-asn=65100 \
+                --psk="praveen_infoblox" \
+                --network="10.212.1.0/24"
 Creating Cato IPsec site with BGP...
 → Initializing Terraform...
 → Planning changes...
@@ -123,11 +185,24 @@ Creating Cato IPsec site with BGP...
 ✓ Resources created successfully!
 
 Outputs:
-  Site ID: 183001
-  Site Name: Praveen-IPsec-BGP-Site
-  BGP Peer ID: 23895
+  Site ID: 183005
+  Site Name: Praveen-Go-SDK-Test-2
+  BGP Peer ID: 23896
   BGP Peer Name: IPsec-BGP-Peer
 ```
+
+**Result**: Successfully created site with:
+- Network range: `10.212.1.0/24` (changed from `10.203.1.0/24`)
+- BGP IP: `169.254.221.1` (changed from `169.254.210.1`)
+- Site ID: `183005`
+- BGP Peer ID: `23896`
+
+### Key Takeaways
+
+1. **Network Range Conflicts**: Each site must have a unique network range
+2. **BGP IP Conflicts**: BGP neighbor IPs must be unique across sites
+3. **Destroy Before Recreate**: Clean up conflicting resources before creating new ones
+4. **Cato IP Address**: SDK uses `169.254.201.1` as private_cato_ip (hardcoded, ensure no conflicts)
 
 ## Project Structure
 
@@ -193,9 +268,19 @@ export CATO_ACCOUNT_ID='your-account-id'
 ```
 
 ### Error: "IP address already in use"
-**Solution:** Change the BGP IP address:
+**Solution:** Change the BGP IP address or destroy conflicting resource:
 ```bash
-make custom BGP_IP="169.254.201.1"
+# Option 1: Use different BGP IP
+make custom BGP_IP="169.254.221.1" NETWORK="10.212.1.0/24"
+
+# Option 2: Destroy existing resource first
+SITE_NAME="Conflicting-Site" make destroy
+```
+
+### Error: "Range X overlaps with range Y"
+**Solution:** Use a different network range:
+```bash
+make run NETWORK="10.212.1.0/24"
 ```
 
 ## Development
