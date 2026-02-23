@@ -1,0 +1,38 @@
+---
+apiVersion: infra.contrib.fluxcd.io/v1alpha2
+kind: Terraform
+metadata:
+  name: cato-praveen-ipsec-bgp
+  namespace: flux-system
+spec:
+  interval: 5m
+  approvePlan: auto  # Change to "" for manual approval
+  path: ./terraform/cato-ipsec-praveen
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  
+  # Non-sensitive variables
+  vars:
+  - name: router_public_ip
+    value: "1.1.1.1"
+  - name: bgp_peer_asn
+    value: 65100
+  - name: bgp_neighbor_ip
+    value: "169.254.100.1"
+  
+  # Sensitive variables from Kubernetes Secret
+  varsFrom:
+  - kind: Secret
+    name: cato-credentials
+    varsKeys:
+    - cato_token
+    - cato_account_id
+    - ipsec_psk
+  
+  # Write Terraform outputs to a Secret
+  writeOutputsToSecret:
+    name: cato-praveen-outputs
+    outputs:
+    - ipsec_site_id
+    - ipsec_site_info
