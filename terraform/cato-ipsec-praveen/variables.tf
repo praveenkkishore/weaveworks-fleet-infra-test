@@ -26,7 +26,7 @@ variable "bgp_peer_asn" {
 
 variable "bgp_neighbor_ip" {
   type    = string
-  default = "169.254.100.1"
+  default = "169.254.200.1"
 }
 
 variable "onprem_networks" {

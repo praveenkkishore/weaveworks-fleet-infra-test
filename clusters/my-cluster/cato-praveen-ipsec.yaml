@@ -19,7 +19,7 @@ spec:
   - name: bgp_peer_asn
     value: 65100
   - name: bgp_neighbor_ip
-    value: "169.254.100.1"
+    value: "169.254.200.1"
   
   # Sensitive variables from Kubernetes Secret
   varsFrom:
